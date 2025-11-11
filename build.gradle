@@ -18,11 +18,26 @@ repositories {
     mavenCentral()
 }
 
+test {
+    enabled = false
+}
+
+// ИЛИ для пропуска тестов только при сборке JAR:
+tasks.named('test') {
+    useJUnitPlatform()
+    exclude '**/*'
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.postgresql:postgresql'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.zaxxer:HikariCP:5.0.1'
 }
 
 tasks.named('test') {

@@ -1,21 +1,33 @@
 package org.example.vs_lab1.handler;
 
+import org.example.vs_lab1.db.DatabaseHelper;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 public class WebSocketHandler extends TextWebSocketHandler {
 
-    public final List<WebSocketSession> sessions = new ArrayList<WebSocketSession>();
+    private final List<WebSocketSession> sessions = new ArrayList<WebSocketSession>();
+    private final DatabaseHelper databaseHelper;
+    private final String instanceId;
+
+    public WebSocketHandler(DatabaseHelper databaseHelper, String instanceId) {
+        this.databaseHelper = databaseHelper;
+        this.instanceId = instanceId;
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         sessions.add(session);
         System.out.println("Новое соединение: " + session.getId());
+
+        String clientIp = getClientIp(session);
 
         String welcomeString =  "{\"Server\":\" Привет от сервера \"}";
         session.sendMessage(new TextMessage(welcomeString));
@@ -33,7 +45,44 @@ public class WebSocketHandler extends TextWebSocketHandler {
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         String messageFromClient = message.getPayload();
-        System.out.println("Получено сообщение от клиента: " + session.getId() + "текст: " + messageFromClient);
+        String clientIp = getClientIp(session);
 
+        log("Получено сообщение от клиента: " + session.getId() + "\nтекст: " + messageFromClient);
+
+        try {
+            // Сохраняем сообщение в БД
+            var savedMessage = databaseHelper.saveMessage(messageFromClient, clientIp);
+
+            String response = createJsonMessage("Server",
+                    "Сообщение сохранено в БД с ID: " + savedMessage.getId() + " (инстанс: " + instanceId + ")");
+            session.sendMessage(new TextMessage(response));
+
+            log("Сообщение сохранено в БД с ID: " + savedMessage.getId());
+
+        } catch (Exception e) {
+            String error = createJsonMessage("Server", "Ошибка сохранения в БД: " + e.getMessage());
+            session.sendMessage(new TextMessage(error));
+            log("Ошибка БД: " + e.getMessage());
+        }
+    }
+
+    private String getClientIp(WebSocketSession session) {
+        return session.getRemoteAddress() != null ?
+                session.getRemoteAddress().getAddress().getHostAddress() : "unknown";
+    }
+
+    private void log(String message) {
+        System.out.println("[" + instanceId + "] " + message);
+    }
+
+    private String createJsonMessage(String from, String text) {
+        return String.format(
+                "{\"from\":\"%s\", \"text\":\"%s\", \"timestamp\":\"%s\", \"instance\":\"%s\"}",
+                from, text, getCurrentTime(), instanceId
+        );
+    }
+
+    private String getCurrentTime() {
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
     }
 }
